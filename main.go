@@ -11,7 +11,7 @@ import (
 	"sync"
 )
 
-// search for regex patterns in the response body of a URL
+// Search for regex patterns in the response body of a URL
 func searchInURL(url string, patterns []*regexp.Regexp, verbose bool) {
 	resp, err := http.Get(url)
 	if err != nil {
@@ -33,13 +33,21 @@ func searchInURL(url string, patterns []*regexp.Regexp, verbose bool) {
 	bodyStr := string(body)
 
 	for _, pattern := range patterns {
-		if pattern.MatchString(bodyStr) {
-			fmt.Printf("Pattern \"%s\" found in %s\n", pattern.String(), url)
+		matches := pattern.FindAllString(bodyStr, -1) // Find all matches for the pattern
+		if len(matches) > 0 {
+			uniqueMatches := make(map[string]int)
+			for _, match := range matches {
+				uniqueMatches[match]++
+			}
+			// Print the summary: number of matches for each unique pattern
+			for match, count := range uniqueMatches {
+				fmt.Printf("Found %d match(es) of \"%s\" in %s\n", count, match, url)
+			}
 		}
 	}
 }
 
-// regex patterns from keywords
+// Compile regex patterns from keywords
 func compilePatterns(keywords []string, caseInsensitive bool) ([]*regexp.Regexp, error) {
 	var patterns []*regexp.Regexp
 	for _, keyword := range keywords {
@@ -86,7 +94,7 @@ func worker(urls <-chan string, patterns []*regexp.Regexp, wg *sync.WaitGroup, v
 }
 
 func main() {
-	// flags for keyword, query file, concurrency, case-insensitive, and verbose logging
+	// Define flags for keyword, query file, concurrency, case-insensitive, and verbose logging
 	query := flag.String("q", "", "Keyword or regex pattern to search for")
 	queryFile := flag.String("qf", "", "File containing keywords or regex patterns to search for")
 	concurrency := flag.Int("c", 1, "Number of concurrent workers")
@@ -94,7 +102,7 @@ func main() {
 	caseInsensitive := flag.Bool("i", false, "Enable case-insensitive matching")
 	flag.Parse()
 
-	// if either -q or -qf is provided
+	// Check if either -q or -qf is provided
 	if *query == "" && *queryFile == "" {
 		fmt.Println("You must specify a keyword/regex (-q) or a query file (-qf)")
 		os.Exit(1)
@@ -102,12 +110,12 @@ func main() {
 
 	var keywords []string
 
-	// if -q is provided, use it as the search keyword or regex pattern
+	// If -q is provided, use it as the search keyword or regex pattern
 	if *query != "" {
 		keywords = append(keywords, *query)
 	}
 
-	// if -qf is provided, load the keywords from the file
+	// If -qf is provided, load the keywords from the file
 	if *queryFile != "" {
 		queries, err := loadQueriesFromFile(*queryFile)
 		if err != nil {
@@ -124,6 +132,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Channel for feeding URLs to workers
 	urls := make(chan string)
 
 	// WaitGroup to wait for all workers to complete
@@ -142,6 +151,7 @@ func main() {
 		urls <- url
 	}
 
+	// Close the URL channel and wait for all workers to finish
 	close(urls)
 	wg.Wait()
 
@@ -149,3 +159,4 @@ func main() {
 		fmt.Printf("Error reading URLs: %v\n", err)
 	}
 }
+
