@@ -22,19 +22,19 @@ Scan URLs from stdin for a specific keyword or regex pattern:
 
 Search for regex patterns in the response body:
 
-`cat urls.txt | gofind -q "user|order|product|api|invoice|account|profile/[0-9]+|[a-fA-F0-9-]{36}"`
+`cat urls.txt | seekr -q "user|order|product|api|invoice|account|profile/[0-9]+|[a-fA-F0-9-]{36}"`
 
 Enable case-insensitive matching:
 
-`cat urls.txt | gofind -q "pattern" -i`
+`cat urls.txt | seekr -q "pattern" -i`
 
 Load multiple patterns from a file:
 
-`cat urls.txt | gofind -qf query_file.txt`
+`cat urls.txt | seekr -qf query_file.txt`
 
 Use concurrent workers to speed up processing:
 
-`cat urls.txt | gofind -q "pattern" -c 20`
+`cat urls.txt | seekr -q "pattern" -c 20`
 
 ## Flags
 
