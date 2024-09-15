@@ -11,8 +11,36 @@ import (
 	"sync"
 )
 
+// Search for regex patterns in the request body of a URL
+func searchInRequest(url string, patterns []*regexp.Regexp, verbose bool) {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		if verbose {
+			fmt.Printf("Error creating request for URL %s: %v\n", url, err)
+		}
+		return
+	}
+
+	// Convert the request object to a string (including headers and body)
+	reqDump := fmt.Sprintf("%s %s HTTP/1.1\nHost: %s\n", req.Method, req.URL.Path, req.Host)
+
+	for _, pattern := range patterns {
+		matches := pattern.FindAllString(reqDump, -1) // Find all matches in the request dump
+		if len(matches) > 0 {
+			uniqueMatches := make(map[string]int)
+			for _, match := range matches {
+				uniqueMatches[match]++
+			}
+			// Print the summary: number of matches for each unique pattern
+			for match, count := range uniqueMatches {
+				fmt.Printf("Found %d match(es) of \"%s\" in the request of %s\n", count, match, url)
+			}
+		}
+	}
+}
+
 // Search for regex patterns in the response body of a URL
-func searchInURL(url string, patterns []*regexp.Regexp, verbose bool) {
+func searchInResponse(url string, patterns []*regexp.Regexp, verbose bool) {
 	resp, err := http.Get(url)
 	if err != nil {
 		if verbose {
@@ -41,7 +69,7 @@ func searchInURL(url string, patterns []*regexp.Regexp, verbose bool) {
 			}
 			// Print the summary: number of matches for each unique pattern
 			for match, count := range uniqueMatches {
-				fmt.Printf("Found %d match(es) of \"%s\" in %s\n", count, match, url)
+				fmt.Printf("Found %d match(es) of \"%s\" in the response of %s\n", count, match, url)
 			}
 		}
 	}
@@ -86,43 +114,55 @@ func loadQueriesFromFile(filename string) ([]string, error) {
 }
 
 // Worker function for concurrency
-func worker(urls <-chan string, patterns []*regexp.Regexp, wg *sync.WaitGroup, verbose bool) {
+func worker(urls <-chan string, patterns []*regexp.Regexp, wg *sync.WaitGroup, verbose bool, searchRequest bool) {
 	defer wg.Done()
 	for url := range urls {
-		searchInURL(url, patterns, verbose)
+		if searchRequest {
+			searchInRequest(url, patterns, verbose)
+		} else {
+			searchInResponse(url, patterns, verbose)
+		}
 	}
 }
 
 func main() {
 	// Define flags for keyword, query file, concurrency, case-insensitive, and verbose logging
-	query := flag.String("q", "", "Keyword or regex pattern to search for")
-	queryFile := flag.String("qf", "", "File containing keywords or regex patterns to search for")
+	query := flag.String("q", "", "Keyword or regex pattern to search for in the response body")
+	queryFile := flag.String("qf", "", "File containing keywords or regex patterns to search for in the response body")
+	searchRequest := flag.String("req", "", "Keyword or regex pattern to search for in the request body")
 	concurrency := flag.Int("c", 1, "Number of concurrent workers")
 	verbose := flag.Bool("v", false, "Enable verbose logging")
 	caseInsensitive := flag.Bool("i", false, "Enable case-insensitive matching")
 	flag.Parse()
 
-	// Check if either -q or -qf is provided
-	if *query == "" && *queryFile == "" {
-		fmt.Println("You must specify a keyword/regex (-q) or a query file (-qf)")
+	// Ensure -q and -req flags are not used together
+	if *query != "" && *searchRequest != "" {
+		fmt.Println("Error: -q and -req flags cannot be used together.")
 		os.Exit(1)
 	}
 
 	var keywords []string
 
-	// If -q is provided, use it as the search keyword or regex pattern
-	if *query != "" {
-		keywords = append(keywords, *query)
+	// Handle search for response body (-q or -qf)
+	if *query != "" || *queryFile != "" {
+		// If -q is provided, use it as the search keyword or regex pattern
+		if *query != "" {
+			keywords = append(keywords, *query)
+		}
+		// If -qf is provided, load the keywords from the file
+		if *queryFile != "" {
+			queries, err := loadQueriesFromFile(*queryFile)
+			if err != nil {
+				fmt.Printf("Error reading query file: %v\n", err)
+				os.Exit(1)
+			}
+			keywords = append(keywords, queries...)
+		}
 	}
 
-	// If -qf is provided, load the keywords from the file
-	if *queryFile != "" {
-		queries, err := loadQueriesFromFile(*queryFile)
-		if err != nil {
-			fmt.Printf("Error reading query file: %v\n", err)
-			os.Exit(1)
-		}
-		keywords = append(keywords, queries...)
+	// Handle search for request body (-req)
+	if *searchRequest != "" {
+		keywords = append(keywords, *searchRequest)
 	}
 
 	// Compile the keywords into regex patterns with case-insensitive option if -i is enabled
@@ -141,7 +181,7 @@ func main() {
 	// Start workers based on the concurrency flag
 	for i := 0; i < *concurrency; i++ {
 		wg.Add(1)
-		go worker(urls, patterns, &wg, *verbose)
+		go worker(urls, patterns, &wg, *verbose, *searchRequest != "")
 	}
 
 	// Read URLs from stdin (cat urls.txt | gofind)
@@ -159,4 +199,3 @@ func main() {
 		fmt.Printf("Error reading URLs: %v\n", err)
 	}
 }
-
