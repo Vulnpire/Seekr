@@ -1,4 +1,4 @@
-# GoFind
+# Seekr
 
 is a powerful command-line tool written in Go for scanning and searching URLs. It is designed to handle large-scale URL lists efficiently, support concurrent processing, and provide flexible search capabilities with regex patterns. Ideal for penetration testers, bug bounty hunters, and developers looking to automate the search for sensitive information or vulnerabilities.
 
@@ -12,13 +12,13 @@ is a powerful command-line tool written in Go for scanning and searching URLs. I
 
 ## Installation
 
-`go install -v github.com/Vulnpire/gofind`
+`go install -v github.com/Vulnpire/seekr`
 
 ## Basic Usage
 
 Scan URLs from stdin for a specific keyword or regex pattern:
 
-`cat urls.txt | gofind -q "pattern"`
+`cat urls.txt | seekr -q "pattern"`
 
 Search for regex patterns in the response body:
 
